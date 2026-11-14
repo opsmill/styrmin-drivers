@@ -15,7 +15,8 @@ styrminctl drivers load-version https://github.com/opsmill/styrmin-drivers.git m
   --driver-directory drivers/<driver-name>
 ```
 
-See `README.md` for the preparation that db-test and simple-app need before deployment.
+`drivers/db-test` and `drivers/simple-app` are used to develop and test Styrmin, not
+for real deployments. `README.md` lists them separately from the other drivers.
 
 ## Writing or changing a driver
 

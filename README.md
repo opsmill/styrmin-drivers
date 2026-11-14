@@ -15,8 +15,6 @@ the deployment lifecycle.
 | `semaphore` | Semaphore UI for Ansible, Terraform and other tools | `https://semaphoreui.github.io/charts/semaphore` 16.0.11 |
 | `slurpit` | Slurpit network discovery and inventory | `oci://registry.opsmill.io/external/slurpit` 1.3.6 |
 | `generic-app` | Any single-container HTTP application that listens on port 8080 ([documentation](https://docs.styrmin.app/docs/drivers/generic-app)) | `oci://ghcr.io/bjw-s-labs/helm/app-template` 5.2.1 |
-| `simple-app` | Example FastAPI application with PostgreSQL | Built from `drivers/simple-app/src/` |
-| `db-test` | Test application with MariaDB and MongoDB, for backup testing | Built from `drivers/db-test/src/` |
 
 ## Load a driver
 
@@ -38,17 +36,8 @@ other ways to load a driver and what happens after it is loaded.
 The drivers contain fixed public credentials, including admin passwords, database
 passwords and service tokens. Replace them with your own before a real deployment.
 
-### db-test and simple-app
-
-1. Build and publish their application images.
-2. Publish their Helm charts. For db-test, first fetch the MariaDB and MongoDB chart
-   dependencies.
-3. Replace the chart locations `db-test` and `simple-app` in `driver.styrmin.yml` with
-   the published chart URLs.
-
 ### Known issues
 
-- simple-app: the `/probe` endpoint has no authentication and fetches any HTTP URL.
 - slurpit: the service and ingress are not connected.
 
 ## Files in a driver directory
@@ -61,6 +50,20 @@ passwords and service tokens. Replace them with your own before a real deploymen
   for the lifecycle actions, such as `upgrade`.
 - `src/` (optional): application source, `Dockerfile` and Helm chart, for drivers that
   build their own application.
+
+## Development drivers
+
+`drivers/db-test` and `drivers/simple-app` are used to develop and test Styrmin. Do not
+use them for real deployments. To load one, first:
+
+1. Build and publish its application image.
+2. Publish its Helm chart. For db-test, first fetch the MariaDB and MongoDB chart
+   dependencies.
+3. Replace the chart location (`db-test` or `simple-app`) in `driver.styrmin.yml` with
+   the published chart URL.
+
+Known issue: simple-app's `/probe` endpoint has no authentication and fetches any HTTP
+URL.
 
 ## Add a driver
 
