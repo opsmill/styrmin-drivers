@@ -1,0 +1,343 @@
+---
+# Helm values for bjw-s app-template 5.x, rendered by Styrmin from the deployment's context.
+#
+# Four controllers: the Peering Manager web application, its RQ worker, PostgreSQL and Valkey
+# (a Redis-compatible server). Peering Manager reads its configuration from environment
+# variables (configuration.py of the peeringmanager/peering-manager image), set from the
+# `env` Secret. Styrmin applies user environment variables and image overrides to the
+# component containers (see driver.styrmin.yml) after the chart renders, so this template
+# does not pass them to the chart.
+#
+# The drivers of this repository contain fixed public credentials. Replace them before a
+# real deployment.
+{%- set db_name = "peering_manager" %}
+{%- set db_user = "peering_manager" %}
+{%- set db_password = "peering-manager-db-password" %}
+{%- set redis_password = "peering-manager-redis-password" %}
+{%- set fqdns = [services['peering-manager'].primary_fqdn, services['peering-manager'].human_readable_fqdn] | select | list %}
+{%- set trusted_origins = [] %}
+{%- for host in fqdns %}
+{%- set _ = trusted_origins.append("https://" ~ host) %}
+{%- set _ = trusted_origins.append("http://" ~ host) %}
+{%- endfor %}
+global:
+  fullnameOverride: styrmin-peering-manager
+
+secrets:
+  env:
+    forceRename: styrmin-peering-manager-env
+    stringData:
+      ALLOWED_HOSTS: "*"
+      # TLS ends at the ingress controller, so Django receives HTTP requests whose Origin
+      # header is https://<host>. Django rejects the login form unless the origin is trusted.
+      CSRF_TRUSTED_ORIGINS: "{{ trusted_origins | join(' ') }}"
+      SECRET_KEY: "styrmin-peering-manager-secret-key-replace-before-real-use-0123456789"
+      DB_HOST: styrmin-postgresql
+      DB_PORT: "5432"
+      DB_NAME: "{{ db_name }}"
+      DB_USER: "{{ db_user }}"
+      DB_PASSWORD: "{{ db_password }}"
+      DB_SSLMODE: disable
+      REDIS_HOST: styrmin-redis
+      REDIS_PORT: "6379"
+      REDIS_PASSWORD: "{{ redis_password }}"
+      # Created by the web container at its first start.
+      SUPERUSER_NAME: admin
+      SUPERUSER_EMAIL: admin@styrmin.local
+      SUPERUSER_PASSWORD: admin-password
+      SUPERUSER_API_TOKEN: "0123456789abcdef0123456789abcdef01234567"
+      LOGIN_REQUIRED: "true"
+      # Do not send anonymous usage data to the Peering Manager project.
+      CENSUS_REPORTING_ENABLED: "false"
+      EMAIL_FROM_ADDRESS: peering-manager@styrmin.local
+
+controllers:
+  # The image's entrypoint waits for the database, applies the Django migrations, creates
+  # the superuser, collects the static files and starts NGINX Unit on port 8080.
+  web:
+    replicas: 1
+    # The component identifier declared in driver.styrmin.yml, on the Deployment itself and
+    # on its pods: Styrmin selects the workload by its own labels.
+    labels:
+      styrmin/component: web
+    pod:
+      labels:
+        styrmin/component: web
+    containers:
+      peering-manager:
+        image:
+          repository: peeringmanager/peering-manager
+          tag: "v{{ app.version }}"
+          pullPolicy: IfNotPresent
+        envFrom:
+          - secret: env
+        probes:
+          # Migrations run before the server starts listening.
+          startup:
+            enabled: true
+            custom: true
+            spec:
+              httpGet:
+                path: /login/
+                port: 8080
+              periodSeconds: 5
+              failureThreshold: 120
+          liveness:
+            enabled: true
+            custom: true
+            spec:
+              httpGet:
+                path: /login/
+                port: 8080
+              periodSeconds: 20
+              timeoutSeconds: 5
+              failureThreshold: 3
+          readiness:
+            enabled: true
+            custom: true
+            spec:
+              httpGet:
+                path: /login/
+                port: 8080
+              periodSeconds: 10
+              timeoutSeconds: 5
+              failureThreshold: 3
+
+  # Runs the background tasks, including the scheduled housekeeping and PeeringDB
+  # synchronization (Admin > Scheduled Tasks).
+  worker:
+    replicas: 1
+    labels:
+      styrmin/component: worker
+    pod:
+      labels:
+        styrmin/component: worker
+    # The worker fails when the tables do not exist, so it waits until the web container
+    # has applied the migrations of this version.
+    initContainers:
+      wait-for-migrations:
+        image:
+          repository: peeringmanager/peering-manager
+          tag: "v{{ app.version }}"
+          pullPolicy: IfNotPresent
+        command:
+          - sh
+          - -c
+          - >-
+            until /opt/peering-manager/venv/bin/python /opt/peering-manager/manage.py
+            migrate --check >/dev/null 2>&1; do echo "Waiting for the database migrations";
+            sleep 5; done
+        envFrom:
+          - secret: env
+    containers:
+      peering-manager-worker:
+        image:
+          repository: peeringmanager/peering-manager
+          tag: "v{{ app.version }}"
+          pullPolicy: IfNotPresent
+        command:
+          - /opt/peering-manager/venv/bin/python
+          - /opt/peering-manager/manage.py
+          - rqworker
+        envFrom:
+          - secret: env
+        probes:
+          startup:
+            enabled: false
+          readiness:
+            enabled: false
+          liveness:
+            enabled: true
+            custom: true
+            spec:
+              exec:
+                command: [pgrep, -f, rqworker]
+              periodSeconds: 30
+              failureThreshold: 3
+
+  postgresql:
+    replicas: 1
+    # A ReadWriteOnce volume can only be mounted by one pod at a time.
+    strategy: Recreate
+    labels:
+      styrmin/component: database
+    pod:
+      labels:
+        styrmin/component: database
+    containers:
+      postgresql:
+        image:
+          repository: postgres
+          tag: 17.6-alpine
+          pullPolicy: IfNotPresent
+        env:
+          POSTGRES_USER: "{{ db_user }}"
+          POSTGRES_PASSWORD: "{{ db_password }}"
+          POSTGRES_DB: "{{ db_name }}"
+          # Read by Styrmin's postgres backup and restore hooks.
+          POSTGRES_DATABASE: "{{ db_name }}"
+          # A subdirectory, because the root of a new volume can contain lost+found.
+          PGDATA: /var/lib/postgresql/data/pgdata
+        probes:
+          startup:
+            enabled: true
+            custom: true
+            spec:
+              exec:
+                command: [sh, -c, 'pg_isready -q -U "$POSTGRES_USER" -d "$POSTGRES_DB"']
+              periodSeconds: 5
+              failureThreshold: 60
+          liveness:
+            enabled: true
+            custom: true
+            spec:
+              exec:
+                command: [sh, -c, 'pg_isready -q -U "$POSTGRES_USER" -d "$POSTGRES_DB"']
+              periodSeconds: 20
+              failureThreshold: 3
+          readiness:
+            enabled: true
+            custom: true
+            spec:
+              exec:
+                command: [sh, -c, 'pg_isready -q -U "$POSTGRES_USER" -d "$POSTGRES_DB"']
+              periodSeconds: 10
+              failureThreshold: 3
+
+  # Task queue and cache. No persistence: queued tasks are lost when the pod restarts.
+  redis:
+    replicas: 1
+    labels:
+      styrmin/component: cache
+    pod:
+      labels:
+        styrmin/component: cache
+    containers:
+      valkey:
+        image:
+          repository: valkey/valkey
+          tag: 8.1-alpine
+          pullPolicy: IfNotPresent
+        env:
+          REDIS_PASSWORD: "{{ redis_password }}"
+        args: ["--requirepass", "$(REDIS_PASSWORD)", "--save", "", "--appendonly", "no"]
+        probes:
+          startup:
+            enabled: false
+          liveness:
+            enabled: true
+            custom: true
+            spec:
+              tcpSocket:
+                port: 6379
+              periodSeconds: 20
+              failureThreshold: 3
+          readiness:
+            enabled: true
+            custom: true
+            spec:
+              exec:
+                command: [sh, -c, '[ "$(valkey-cli -a "$REDIS_PASSWORD" --no-auth-warning ping)" = PONG ]']
+              periodSeconds: 10
+              failureThreshold: 3
+
+service:
+  web:
+    controller: web
+    ports:
+      http:
+        port: 8080
+  postgresql:
+    controller: postgresql
+    forceRename: styrmin-postgresql
+    ports:
+      postgresql:
+        port: 5432
+  redis:
+    controller: redis
+    forceRename: styrmin-redis
+    ports:
+      redis:
+        port: 6379
+
+# No ingress here: Styrmin builds the Ingress of the external `peering-manager` service.
+
+persistence:
+  data:
+    type: persistentVolumeClaim
+    forceRename: styrmin-postgresql-data
+    accessMode: ReadWriteOnce
+    size: "{{ parameters.database_storage_size }}Gi"
+{%- if instance.config.standard_storage.storage_class %}
+    storageClass: "{{ instance.config.standard_storage.storage_class }}"
+{%- endif %}
+    advancedMounts:
+      postgresql:
+        postgresql:
+          - path: /var/lib/postgresql/data
+  # Styrmin's postgres backup writes pg_dump output to this volume, then Velero backs it up.
+  backup:
+    type: emptyDir
+    advancedMounts:
+      postgresql:
+        postgresql:
+          - path: /backup
+
+# Styrmin's environment policies deny all egress except for its own Infrahub, Prefect and
+# Traefik pods (opsmill/styrmin#284), and all ingress except from the environment's ingress
+# controller. So the driver declares what its pods need: traffic from the applications of
+# its environment, which includes the other pods of this deployment, and to DNS, those same
+# applications and, when allowed, the public internet (IPv4 and IPv6, never the private
+# ranges). PeeringDB synchronization and IX-API need the internet.
+networkpolicies:
+  ingress:
+    podSelector: {}
+    policyTypes:
+      - Ingress
+    rules:
+      ingress:
+        - from:
+            - namespaceSelector:
+                matchLabels:
+                  styrmin/environment_id: "{{ labels.environment_id }}"
+  egress:
+    podSelector: {}
+    policyTypes:
+      - Egress
+    rules:
+      egress:
+        - to:
+            - namespaceSelector: {}
+              podSelector:
+                matchExpressions:
+                  - key: k8s-app
+                    operator: In
+                    values: [kube-dns, coredns]
+          ports:
+            - port: 53
+              protocol: UDP
+            - port: 53
+              protocol: TCP
+        - to:
+            - namespaceSelector:
+                matchLabels:
+                  styrmin/environment_id: "{{ labels.environment_id }}"
+{%- if parameters.allow_internet %}
+        - to:
+            - ipBlock:
+                cidr: 0.0.0.0/0
+                except:
+                  - 10.0.0.0/8
+                  - 172.16.0.0/12
+                  - 192.168.0.0/16
+                  - 100.64.0.0/10
+        - to:
+            - ipBlock:
+                cidr: ::/0
+                except:
+                  - ::1/128
+                  - fc00::/7
+                  - fe80::/10
+                  - 64:ff9b::/96
+                  - 2001:db8::/32
+{%- endif %}

@@ -1,0 +1,98 @@
+---
+# Peering Manager: BGP peering management (internet exchanges, direct peerings, BGP sessions,
+# PeeringDB data, router configurations).
+#
+# Helm chart: bjw-s app-template, as in generic-app. No published Peering Manager chart fits:
+# the community chart herrtxbias/peering-manager 0.1.9 (built for Peering Manager 1.8) fails
+# to render with its own PostgreSQL sub-chart, and a driver deploys a single chart. So
+# values.j2.yml declares the four workloads: web, worker, PostgreSQL and Valkey.
+#
+# Supported versions start at 1.11: from that version the RQ worker runs the housekeeping
+# and PeeringDB synchronization tasks itself, so the driver needs no CronJob.
+apiVersion: "styrmin.io/v1"
+kind: ApplicationDriver
+metadata:
+  name: peering-manager
+spec:
+  version: "1"
+  supported_versions: ">=1.11,<1.12"
+  default_version: "1.11.1"
+  info:
+    icon: https://raw.githubusercontent.com/peering-manager/peering-manager/main/project-static/img/peering-manager.svg
+    description: >-
+      BGP peering management: internet exchange and direct peering relationships, BGP
+      sessions, PeeringDB data and router configurations.
+    authors: [opsmill]
+    license: Apache-2.0
+    links:
+      - link: Homepage
+        url: 'https://peering-manager.net/'
+      - link: Documentation
+        url: 'https://docs.peering-manager.net/'
+      - link: Github
+        url: 'https://github.com/peering-manager/peering-manager'
+  helm:
+    main:
+      location: oci://ghcr.io/bjw-s-labs/helm/app-template
+      version: 5.2.1
+
+  parameters:
+    - name: database_storage_size
+      label: "Database storage size (Gi)"
+      kind: integer
+      default: 10
+    - name: allow_internet
+      label: "Allow egress to the internet (PeeringDB synchronization, IX-API)"
+      kind: boolean
+      default: true
+
+  components:
+    # Django application served by NGINX Unit on port 8080. Its entrypoint applies the
+    # migrations and creates the superuser at startup.
+    web:
+      container: peering-manager
+      replicas: 1
+      identifier:
+        label:
+          styrmin/component: web
+
+    # RQ worker (`manage.py rqworker`).
+    worker:
+      container: peering-manager-worker
+      replicas: 1
+      identifier:
+        label:
+          styrmin/component: worker
+
+    database:
+      container: postgresql
+      singleton: true
+      identifier:
+        label:
+          styrmin/component: database
+      backup:
+        enabled: true
+        kind: postgres
+        database_name: peering_manager
+
+    # Valkey: task queue and cache, without persistence.
+    cache:
+      container: valkey
+      singleton: true
+      identifier:
+        label:
+          styrmin/component: cache
+
+  services:
+    - name: peering-manager
+      kind: http
+      scope: external
+      port: 8080
+      component: web
+
+  actions:
+    - name: upgrade
+      hook: upgrade
+      mode: core
+      description: Upgrade Peering Manager
+      location: "actions.py::upgrade"

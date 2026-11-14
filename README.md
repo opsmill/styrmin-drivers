@@ -12,6 +12,7 @@ the deployment lifecycle.
 | `infrahub` | Infrahub | `oci://registry.opsmill.io/opsmill/chart/infrahub` 4.33.2 |
 | `infrahub-enterprise` | Infrahub Enterprise | `oci://registry.opsmill.io/opsmill/chart/infrahub-enterprise` 4.19.2 |
 | `infrahub-mcp` | Infrahub MCP server, for an existing Infrahub instance | `oci://registry.opsmill.io/opsmill/chart/infrahub-mcp` 0.1.0 |
+| `peering-manager` | Peering Manager for BGP peering management | `oci://ghcr.io/bjw-s-labs/helm/app-template` 5.2.1 |
 | `semaphore` | Semaphore UI for Ansible, Terraform and other tools | `https://semaphoreui.github.io/charts/semaphore` 16.0.11 |
 | `slurpit` | Slurpit network discovery and inventory | `oci://registry.opsmill.io/external/slurpit` 1.3.6 |
 | `generic-app` | Any single-container HTTP application that listens on port 8080 ([documentation](https://docs.styrmin.app/docs/drivers/generic-app)) | `oci://ghcr.io/bjw-s-labs/helm/app-template` 5.2.1 |
