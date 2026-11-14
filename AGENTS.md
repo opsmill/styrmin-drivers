@@ -6,18 +6,16 @@ adapters must point back to it instead of copying it.
 
 ## What this repository contains
 
-Application drivers for [Styrmin](https://docs.styrmin.app/). Each directory under
-`drivers/` is one driver that a Styrmin operator loads with `styrminctl`:
+The application drivers for [Styrmin](https://docs.styrmin.app/). New drivers are added
+here. Each directory under `drivers/` is one driver that a Styrmin operator loads with
+`styrminctl`:
 
 ```bash
 styrminctl drivers load-version https://github.com/opsmill/styrmin-drivers.git main \
   --driver-directory drivers/<driver-name>
 ```
 
-The drivers are copies of `driver/examples/` in
-[opsmill/styrmin](https://github.com/opsmill/styrmin/tree/2d6aee04711a34eea3ea9ea3fac853ee898d2197/driver/examples).
-They have not been deployed or tested from this repository. See `README.md` for the
-preparation that db-test and simple-app need before deployment.
+See `README.md` for the preparation that db-test and simple-app need before deployment.
 
 ## Files in a driver directory
 
