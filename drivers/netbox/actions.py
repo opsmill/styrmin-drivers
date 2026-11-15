@@ -22,14 +22,3 @@ async def upgrade(context: GlobalContext, target_version: str):
 
     logger.info(f"NetBox upgrade to {target_version} complete.")
 
-
-@flow
-def pre_setup(context: GlobalContext):
-    logger = get_run_logger()
-    logger.info("Executing NetBox pre-setup...")
-
-
-@flow
-def post_setup(context: GlobalContext):
-    logger = get_run_logger()
-    logger.info("Executing NetBox post-setup...")
