@@ -1,0 +1,103 @@
+---
+fullnameOverride: styrmin-netbox
+
+global:
+  security:
+    # Required by the Bitnami subcharts to accept the bitnamilegacy images below.
+    allowInsecureImages: true
+
+image:
+  tag: "v{{ app.version }}"
+  pullPolicy: IfNotPresent
+
+# Fixed public credentials: replace them before a real deployment.
+superuser:
+  name: admin
+  email: admin@styrmin.local
+  password: admin-password
+  apiToken: 0123456789abcdef0123456789abcdef01234567
+
+# Without a fixed value the chart generates a new key on every render, which
+# logs out every user each time Styrmin re-renders the values.
+secretKey: styrmin-netbox-secret-key-0123456789abcdefghijklmnopqrstuvwxyz
+
+# Signs v2 API tokens. Same reason as secretKey: without a fixed value the chart
+# can generate a new pepper, which breaks every existing v2 token. To rotate,
+# add a higher-numbered entry and keep the old ones.
+apiTokenPeppers:
+  1: styrmin-netbox-api-token-pepper-0123456789abcdefghijklmnopqrstuvwxyz
+
+ingress:
+  enabled: true
+  pathType: Prefix
+  hosts:
+    - host: "{{ services.netbox.primary_fqdn }}"
+      paths:
+        - /
+    - host: "{{ services.netbox.human_readable_fqdn }}"
+      paths:
+        - /
+
+# Django rejects form submissions (including the login form) from origins it
+# does not trust. Build the external URLs the same way as compute_external_url:
+# scheme defaults to https, port omitted when it matches the scheme default.
+{%- set nb_scheme = instance.config.external_url_scheme or "https" %}
+{%- set nb_port = instance.config.external_url_port %}
+{%- set nb_default_port = 80 if nb_scheme == "http" else 443 %}
+{%- set nb_port_suffix = ":" ~ nb_port if nb_port and nb_port != nb_default_port else "" %}
+csrf:
+  trustedOrigins:
+    - "{{ nb_scheme }}://{{ services.netbox.primary_fqdn }}{{ nb_port_suffix }}"
+    - "{{ nb_scheme }}://{{ services.netbox.human_readable_fqdn }}{{ nb_port_suffix }}"
+
+persistence:
+  enabled: true
+  accessMode: ReadWriteOnce
+  size: "{{ parameters.media_storage_size }}Gi"
+  storageClass: "{{ instance.config.standard_storage.storage_class }}"
+
+housekeeping:
+  enabled: {{ parameters.enable_housekeeping | lower }}
+
+postgresql:
+  enabled: true
+  fullnameOverride: styrmin-postgresql
+  image:
+    registry: docker.io
+    repository: bitnamilegacy/postgresql
+    tag: 17.6.0-debian-12-r4
+  auth:
+    username: netbox
+    password: netbox-password
+    postgresPassword: netbox-postgres-password
+    database: netbox
+  metrics:
+    enabled: false
+  primary:
+    persistence:
+      enabled: true
+      size: "{{ parameters.database_storage_size }}Gi"
+      storageClass: "{{ instance.config.fast_storage.storage_class }}"
+    extraVolumes:
+      - name: backup
+        emptyDir: {}
+    extraVolumeMounts:
+      - name: backup
+        mountPath: /backup
+
+valkey:
+  enabled: true
+  fullnameOverride: styrmin-valkey
+  architecture: standalone
+  image:
+    registry: docker.io
+    repository: bitnamilegacy/valkey
+    tag: 8.1.3-debian-12-r3
+  auth:
+    enabled: true
+    password: netbox-valkey-password
+  primary:
+    persistence:
+      enabled: true
+      size: 1Gi
+      storageClass: "{{ instance.config.standard_storage.storage_class }}"
