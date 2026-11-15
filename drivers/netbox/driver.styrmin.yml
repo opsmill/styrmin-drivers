@@ -10,7 +10,7 @@ spec:
   info:
     icon: https://raw.githubusercontent.com/netbox-community/netbox/main/docs/netbox_logo_light.svg
     description: IP address management (IPAM) and data center infrastructure management (DCIM) tool
-    authors: [opsmill]
+    authors: []
     license: Apache-2.0
     links:
       - link: Homepage
