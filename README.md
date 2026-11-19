@@ -13,7 +13,8 @@ the deployment lifecycle.
 | `infrahub-enterprise` | Infrahub Enterprise | `oci://registry.opsmill.io/opsmill/chart/infrahub-enterprise` 4.19.2 |
 | `infrahub-mcp` | Infrahub MCP server, for an existing Infrahub instance | `oci://registry.opsmill.io/opsmill/chart/infrahub-mcp` 0.1.0 |
 | `semaphore` | Semaphore UI for Ansible, Terraform and other tools | `https://semaphoreui.github.io/charts/semaphore` 16.0.11 |
-| `slurpit` | Slurpit network discovery and inventory | `oci://registry.opsmill.io/external/slurpit` 1.3.6 |
+| `slurpit` | Slurpit network discovery and inventory | `oci://registry.opsmill.io/external/slurpit` 1.3.7 ([chart changes](drivers/slurpit/CHART.md)) |
+| `netpicker` | Netpicker | `oci://registry.opsmill.io/external/netpicker` 2.8.1-opsmill.1 ([chart changes](drivers/netpicker/CHART.md)) |
 | `generic-app` | Any single-container HTTP application that listens on port 8080 ([documentation](https://docs.styrmin.app/docs/drivers/generic-app)) | `oci://ghcr.io/bjw-s-labs/helm/app-template` 5.2.1 |
 
 ## Load a driver
@@ -38,7 +39,8 @@ passwords and service tokens. Replace them with your own before a real deploymen
 
 ### Known issues
 
-- slurpit: the service and ingress are not connected.
+- netpicker and slurpit: the chart versions above are not published yet, so these two drivers
+  cannot deploy until they are.
 
 ## Files in a driver directory
 
@@ -50,6 +52,9 @@ passwords and service tokens. Replace them with your own before a real deploymen
   for the lifecycle actions, such as `upgrade`.
 - `src/` (optional): application source, `Dockerfile` and Helm chart, for drivers that
   build their own application.
+- `chart/` and `CHART.md` (optional): an OpsMill copy of an upstream Helm chart, for
+  drivers whose application does not publish a chart that Styrmin can use. `CHART.md`
+  lists the changes to the upstream chart and how to publish it.
 
 ## Development drivers
 

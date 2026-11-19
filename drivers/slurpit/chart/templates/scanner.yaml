@@ -1,0 +1,54 @@
+{{ if .Values.scanner.enabled }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "slurpit.fullname" . }}-scanner-config
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "slurpit.componentLabels" (dict "root" . "component" "scanner") | nindent 4 }}
+data:
+  TZ: {{ .Values.scanner.timezone | default .Values.global.timezone | quote }}
+{{- range $key, $value := .Values.scanner.env }}
+  {{ $key }}: {{ $value | quote }}
+{{- end }}
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "slurpit.fullname" . }}-scanner
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "slurpit.componentLabels" (dict "root" . "component" "scanner") | nindent 4 }}
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      {{- include "slurpit.componentSelectorLabels" (dict "root" . "component" "scanner") | nindent 6 }}
+  strategy:
+    type: Recreate
+  template:
+    metadata:
+      labels:
+        {{- include "slurpit.componentLabels" (dict "root" . "component" "scanner") | nindent 8 }}
+    spec:
+      containers:
+        - name: {{ .Chart.Name }}-scanner
+          image: {{ .Values.scanner.image.registry | default .Values.global.registry }}{{ .Values.scanner.image.name }}:{{ .Values.scanner.image.version | default .Values.global.image.version }}
+          imagePullPolicy: {{ .Values.scanner.image.pullPolicy | default .Values.global.image.pullPolicy }}
+          envFrom:
+            - configMapRef:
+                name: {{ include "slurpit.fullname" . }}-scanner-config
+          {{- with .Values.scanner.security.container }}
+          securityContext:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+      restartPolicy: {{ .Values.scanner.restartPolicy }}
+      {{- with .Values.scanner.security.template }}
+      securityContext:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+    {{- with .Values.scanner.extraPodSpecs }}
+      {{- toYaml . | nindent 6 }}
+    {{- end }}
+{{ end }}

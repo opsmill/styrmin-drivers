@@ -1,0 +1,110 @@
+{#- The API and the workers wait until the database is at exactly this revision, and the
+    migration Job migrates the database to it. "head" does not work: the pods wait for a
+    revision named "head" forever. Read the revision of a new version with:
+      docker run --rm --entrypoint sh netpicker/api:<version> -c 'cd /opt && alembic heads' #}
+{%- set alembic_revisions = {
+  "2.8": "78239c9184d4",
+  "2.8.1": "c8b7d285bc97",
+  "2.8.2": "3745227835c3",
+} %}
+{%- set alembic_revision = parameters.alembic_revision or alembic_revisions.get(app.version, "") %}
+{%- set storage_class = instance.config.standard_storage.storage_class %}
+{#- This deployment's own short host, built as Styrmin's compute_human_readable_fqdn builds it:
+    <resolved service name>-<environment>, sanitized, cut to fit 63 characters. `services` holds
+    every service of the environment by driver service name, so two Netpicker deployments in one
+    environment would read each other's entry: `deployed_services` names the owner. #}
+{%- set own = namespace(name="") %}
+{%- for s in deployed_services if s.deployment_id == (instance.deployment_id | string) and s.component == "frontend" %}
+{%- set own.name = s.resolved_name %}
+{%- endfor %}
+{%- set env_label = environment.name | to_fqdn_label %}
+{%- set room = 62 - (env_label | length) %}
+{%- set host_label = ((own.name | to_fqdn_label)[:room] | trim("-")) if room > 0 else "" %}
+{%- set readable_fqdn = (host_label ~ "-" ~ env_label ~ "." ~ instance.config.fqdn_suffix) if host_label and instance.config.fqdn_suffix else "" %}
+fullnameOverride: styrmin-netpicker
+
+global:
+  storageClass: "{{ storage_class }}"
+
+# The chart's StorageClass is cluster-wide: Styrmin provides the storage classes.
+storageClass:
+  enabled: false
+
+persistence:
+  # The API, the workers and the migration Job share the API volume, and the agent and
+  # kibbitzer share the dc-vol volume: on a cluster with several nodes, ReadWriteOnce
+  # needs these pods on one node.
+  accessMode: ReadWriteOnce
+  # No pod mounts the config volume, and only the disabled transferium FTP server mounts the
+  # transferium volume. With a WaitForFirstConsumer storage class, a volume that no pod
+  # mounts stays Pending, and the install times out.
+  config:
+    enabled: false
+  transferium:
+    enabled: false
+
+images:
+  agent:
+    tag: "{{ app.version }}"
+  api:
+    tag: "{{ app.version }}"
+  frontend:
+    tag: "{{ app.version }}"
+  gitd:
+    tag: "{{ app.version }}"
+  gitdctrl:
+    tag: "{{ app.version }}"
+  kibbitzer:
+    tag: "{{ app.version }}"
+  syslogng:
+    tag: "{{ app.version }}"
+
+db:
+  postgresPassword: "styrmin-netpicker-postgres"
+  # The API, the workers and the migration Job connect as the database superuser, so the
+  # objects that a restore recreates (pg_restore --no-owner as postgres) stay theirs.
+  apiUser: postgres
+  apiPassword: "styrmin-netpicker-postgres"
+  persistence:
+    size: "{{ parameters.database_storage_size }}Gi"
+  # Read by the Styrmin postgres backup and restore hooks. The image creates the
+  # superuser postgres, so POSTGRES_USER keeps its default.
+  extraEnv:
+    - name: POSTGRES_USER
+      value: postgres
+    - name: POSTGRES_DATABASE
+      value: netpicker
+  extraVolumes:
+    - name: backup
+      emptyDir: {}
+  extraVolumeMounts:
+    - name: backup
+      mountPath: /backup
+
+api:
+  alembicVersion: "{{ alembic_revision }}"
+  jwtSecret: "{{ parameters.jwt_secret or ('styrmin-netpicker-' ~ instance.deployment_id) }}"
+  persistence:
+    size: "{{ parameters.api_storage_size }}Gi"
+
+gitd:
+  persistence:
+    size: "{{ parameters.git_storage_size }}Gi"
+  service:
+    # The chart's default NodePort opens the git daemon on every node of the cluster. The
+    # template does not use gitd.service.nodePort, so the port is random.
+    type: ClusterIP
+
+minio:
+  persistence:
+    size: "{{ parameters.minio_storage_size }}Gi"
+
+ingress:
+  enabled: true
+  # The ID host and the short host that Styrmin shows (<service name>-<environment>). An empty
+  # host is left out: it would make a rule that matches every host.
+  hosts:
+{%- for host in [services['netpicker'].primary_fqdn, readable_fqdn] if host %}
+    - "{{ host }}"
+{%- endfor %}
+  path: /

@@ -4,8 +4,11 @@ kind: ApplicationDriver
 metadata:
   name: slurpit
 spec:
-  version: "2"
-  supported_versions: ">=1.3,<1.4"
+  version: "3"
+  # The application version is a Slurp'it release line, such as 1.4: each component has
+  # its own patch versions, so values.j2.yml maps the line to an image tag per component.
+  supported_versions: ">=1.3,<1.5"
+  default_version: "1.4"
   info:
     description: Network discovery and inventory management platform
     authors: [opsmill]
@@ -17,8 +20,9 @@ spec:
         url: 'https://gitlab.com/slurpit.io/images'
   helm:
     main:
+      # The chart in chart/ of this driver: see CHART.md.
       location: oci://registry.opsmill.io/external/slurpit
-      version: "1.3.6"
+      version: "1.3.7"
 
   parameters:
     - name: timezone
@@ -31,6 +35,10 @@ spec:
       default: 16
     - name: scraper_pool_size
       label: "Scraper pool size"
+      kind: integer
+      default: 16
+    - name: retriever_pool_size
+      label: "Retriever pool size"
       kind: integer
       default: 16
     - name: mariadb_storage_size
@@ -75,8 +83,15 @@ spec:
         label:
           app.kubernetes.io/component: scraper
 
+    retriever:
+      container: slurpit-retriever
+      identifier:
+        label:
+          app.kubernetes.io/component: retriever
+
     mariadb:
       container: slurpit-mariadb
+      singleton: true
       identifier:
         label:
           app.kubernetes.io/component: mariadb
@@ -86,12 +101,20 @@ spec:
 
     mongodb:
       container: styrmin-slurpit-mongodb
+      singleton: true
       identifier:
         label:
           app.kubernetes.io/component: mongodb
       backup:
         enabled: true
         kind: mongodb
+
+  services:
+    - name: slurpit
+      kind: http
+      scope: external
+      port: 80
+      component: portal
 
   actions:
     - name: upgrade

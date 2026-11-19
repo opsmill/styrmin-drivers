@@ -1,0 +1,349 @@
+global:
+  timezone: Europe/Amsterdam
+  image:
+    registry:  # If empty it uses docker, alternative is quay.io/
+    version: latest
+    pullPolicy: Always
+
+mariadb:
+  enabled: true  
+  timezone: # Defaults to the global.timezone
+  image:
+    name: mariadb
+    version: 12-noble
+    registry: 
+    pullPolicy: # Defaults to the global.image.pullPolicy
+  storage:
+    enabled: true
+    accessModes: ReadWriteMany
+    className: 
+    size: 8Gi
+    extraMetadata: # For your annotations and finalizers
+    pv:
+      enabled: false # the pvc usually manages the pv, enable if you want to manage it in the helm
+      reclaimPolicy: Retain
+      size: 32Gi
+      extraSpec:
+  service:
+    type: ClusterIP
+    mysql: 
+      port: 3306
+      nodePort: 
+  env:
+    MARIADB_DATABASE: portal
+    MARIADB_USER: slurpit
+    MARIADB_PASSWORD: qDlqHrK1VBoq!ac
+    MARIADB_RANDOM_ROOT_PASSWORD: true
+    MARIADB_AUTO_UPGRADE: true
+  security:
+    container:
+      allowPrivilegeEscalation: false
+    template:
+      runAsNonRoot: true
+      runAsUser: 999
+      runAsGroup: 999
+      fsGroup: 999
+  extraPodSpecs: # For your nodeSelectors, tolerations, affinity 
+
+mongodb:
+  enabled: true 
+  timezone: # Defaults to the global.timezone
+  image:
+    name: mongo
+    version: 8
+    registry: 
+    pullPolicy: # Defaults to the global.image.pullPolicy
+  storage:
+    enabled: true
+    accessModes: ReadWriteMany
+    className: 
+    size: 16Gi
+    extraMetadata: # For your annotations and finalizers
+    pv:
+      enabled: false # the pvc usually manages the pv, enable if you want to manage it in the helm
+      reclaimPolicy: Retain
+      size: 128Gi
+      extraSpec:
+  service:
+    type: ClusterIP
+    mongo: 
+      port: 27017
+      nodePort: 
+  env:
+    MONGO_INITDB_ROOT_USERNAME: slurpit
+    MONGO_INITDB_ROOT_PASSWORD: IS8USd6KXEoK7z4ly9wUygRCzBVJCCiP 
+  security:
+    container:
+      allowPrivilegeEscalation: false
+    template:
+      runAsNonRoot: true
+      runAsUser: 1000
+      runAsGroup: 1000
+      fsGroup: 1000
+  extraPodSpecs: # For your nodeSelectors, tolerations, affinity 
+
+portal:
+  enabled: true  
+  timezone: # Defaults to the global.timezone
+  restartPolicy: Always
+  image:
+    name: slurpit/portal
+    version: # Defaults to the global.image.version
+    registry: # Defaults to the global.image.registry
+    pullPolicy: # Defaults to the global.image.pullPolicy
+  storage:
+    enabled: true
+    accessModes: ReadWriteMany
+    className: 
+    size: 8Gi
+    extraMetadata: # For your annotations and finalizers
+    pv:
+      enabled: false # the pvc usually manages the pv, enable if you want to manage it in the helm
+      reclaimPolicy: Retain
+      size: 32Gi
+      extraSpec:
+  service:
+    type: ClusterIP
+    http: 
+      enabled: true
+      port: 80
+      nodePort: 
+    https: 
+      enabled: false
+      port: 443
+      nodePort: 
+    ldap: 
+      enabled: false
+      port: 636
+      nodePort: 
+  ingress:
+    enabled: true
+    host: localhost
+    extraHosts: []
+    path: /
+    port: 80
+  env:
+    PORTAL_SAFEKEY: thisisaverysafekey
+    PORTAL_BIND_DNS: false
+    PORTAL_BASE_URL: http://localhost
+    PORTAL_BASE_PATH: 
+    PORTAL_BASE_SCHEME: 
+    PORTAL_TRUST_FORWARDED_HEADERS: false
+    PORTAL_MENU_MODE: classic
+    PORTAL_AIR_GAPPED: false
+
+    PORTAL_ADMIN_ENABLED: false
+    PORTAL_ADMIN_PASSWORD: 12345678
+    
+    PORTAL_LDAP_DEBUG: false
+    PORTAL_LDAP_MODE: try
+
+    PORTAL_WAREHOUSE_URL: http://slurpit-warehouse-service
+    PORTAL_WAREHOUSE_TOKEN: pIcOFhKMTCzDiWH6kj7sD5PoVSbD3TGT
+    PORTAL_WAREHOUSE_CALLBACK_TOKEN: b9X7vL2mQpA5zT1YwKdR6NsJ8oCfG3Hc
+
+    PORTAL_NETPICKER_URL: https://netpicker.io
+    PORTAL_PLUGIN_BATCH_SIZE: 10000
+
+    PORTAL_DB_NAME: portal
+    PORTAL_DB_HOSTNAME: slurpit-mariadb-service
+    PORTAL_DB_PORT: 3306
+    PORTAL_DB_USERNAME: slurpit
+    PORTAL_DB_PASSWORD: qDlqHrK1VBoq!ac
+    PORTAL_DB_SSL: false
+    PORTAL_DB_SSL_VERIFY: 
+    PORTAL_DB_SSL_KEY: 
+    PORTAL_DB_SSL_CERT: 
+    PORTAL_DB_SSL_CA: 
+    PORTAL_DB_SSL_CAPATH: 
+    PORTAL_DB_SSL_CIPHER: 
+
+    PORTAL_BACKUP: true
+    PORTAL_BACKUP_DAYS: 7
+    PORTAL_BACKUP_WEEKS: 32
+  security:
+    container:
+    template:
+      runAsNonRoot: true
+      runAsUser: 1010
+      runAsGroup: 1010
+      fsGroup: 1010
+  extraPodSpecs: # For your nodeSelectors, tolerations, affinity 
+
+warehouse:
+  enabled: true
+  timezone: # Defaults to the global.timezone
+  restartPolicy: Always
+  image:
+    name: slurpit/warehouse
+    version: # Defaults to the global.image.version
+    registry: # Defaults to the global.image.registry
+    pullPolicy: # Defaults to the global.image.pullPolicy
+  service:
+    type: ClusterIP
+    http: 
+      port: 80
+      nodePort: 
+    grpc: 
+      port: 50051
+      nodePort: 
+  storage:
+    enabled: true
+    accessModes: ReadWriteMany
+    className: 
+    size: 16Gi
+    extraMetadata: # For your annotations and finalizers
+    pv:
+      enabled: false # the pvc usually manages the pv, enable if you want to manage it in the helm
+      reclaimPolicy: Retain
+      size: 128Gi
+      extraSpec:
+  env:
+    WAREHOUSE_DEBUG: false
+    WAREHOUSE_MONGODB_LOCAL: false
+    WAREHOUSE_PORTAL_URL: http://slurpit-portal-service
+    WAREHOUSE_PORTAL_TOKEN: b9X7vL2mQpA5zT1YwKdR6NsJ8oCfG3Hc
+    WAREHOUSE_WEBSERVICE_PORT: 80
+    WAREHOUSE_GRPC_PORT: 50051
+    WAREHOUSE_API_TOKEN: pIcOFhKMTCzDiWH6kj7sD5PoVSbD3TGT
+    WAREHOUSE_MONGODB_URI: mongodb://slurpit:IS8USd6KXEoK7z4ly9wUygRCzBVJCCiP@slurpit-mongodb-service:27017/slurpit?authSource=admin
+    WAREHOUSE_BACKUP: true
+    WAREHOUSE_BACKUP_DAYS: 7
+    WAREHOUSE_BACKUP_WEEKS: 32
+    WAREHOUSE_RUN_INIT: false
+  security:
+    container:
+    template:
+      runAsNonRoot: true
+      runAsUser: 1000
+      runAsGroup: 1000
+      fsGroup: 1000
+  extraPodSpecs: # For your nodeSelectors, tolerations, affinity 
+
+scanner:
+  enabled: true
+  timezone: # Defaults to the global.timezone
+  restartPolicy: Always
+  image:
+    name: slurpit/scanner
+    version: # Defaults to the global.image.version
+    registry: # Defaults to the global.image.registry
+    pullPolicy: # Defaults to the global.image.pullPolicy
+  env:    
+    SCANNER_DEBUG: false
+    SCANNER_DEBUG_SCAPY: false
+    SCANNER_POOLSIZE: 16
+    SCANNER_IDENTIFIER: scanner
+    SCANNER_TAGS: "default"
+
+    SCANNER_WAREHOUSE_HOSTNAME: slurpit-warehouse-service
+    SCANNER_WAREHOUSE_TOKEN: "pIcOFhKMTCzDiWH6kj7sD5PoVSbD3TGT"
+    SCANNER_WAREHOUSE_PORT: 50051
+
+    SCANNER_RATELIMITER: 0
+    SCANNER_RATELIMITER_SCAN: false
+    SCANNER_DNS_LOOKUP_ENABLED: true
+    SCANNER_SMART_IP_DISCOVERY: false 
+
+    SCANNER_SNMP_TIMEOUT: 6
+    SCANNER_SNMP_RETRIES: 2
+
+    SCANNER_ARP_ENABLED: true
+    SCANNER_ARP_TIMEOUT: 10
+    SCANNER_ARP_TCP_ENABLED: false
+
+    SCANNER_ICMP_ENABLED: false
+    SCANNER_ICMP_ALT_ENABLED: true
+    SCANNER_ICMP_TIMEOUT: 6
+
+    SCANNER_TCP_ENABLED: false
+    SCANNER_TCP_TIMEOUT: 6
+    SCANNER_TCP_PORTS: "22, 23"
+
+    SCANNER_UDP_ENABLED: false
+    SCANNER_UDP_TIMEOUT: 6
+
+    SCANNER_POLL_ENABLED: true
+    SCANNER_POLL_TESTS_ENABLED: true
+  security:
+    container:
+      allowPrivilegeEscalation: false
+    template:
+      runAsNonRoot: true
+      runAsUser: 1000
+      runAsGroup: 1000
+      fsGroup: 1000
+  extraPodSpecs: # For your nodeSelectors, tolerations, affinity 
+
+scraper:
+  enabled: true
+  timezone: # Defaults to the global.timezone
+  restartPolicy: Always
+  image:
+    name: slurpit/scraper
+    version: # Defaults to the global.image.version
+    registry: # Defaults to the global.image.registry
+    pullPolicy: # Defaults to the global.image.pullPolicy
+  env:
+    SCRAPER_DEBUG: false
+    SCRAPER_POOLSIZE: 16
+    SCRAPER_TIMEOUT: 60
+    SCRAPER_IDENTIFIER: scraper
+    SCRAPER_TAGS: "default"
+
+    SCRAPER_WAREHOUSE_HOSTNAME: slurpit-warehouse-service
+    SCRAPER_WAREHOUSE_TOKEN: "pIcOFhKMTCzDiWH6kj7sD5PoVSbD3TGT"
+    SCRAPER_WAREHOUSE_PORT: 50051
+
+    SCRAPER_RATELIMITER: 0
+    SCRAPER_RATELIMIT_COMMANDS: false
+    SCRAPER_DNS_LOOKUP_ENABLED: true
+    SCRAPER_SSH_PORT: 22
+
+    SCRAPER_LOGIN_RETRY: 1
+    SCRAPER_LOGIN_RETRY_DELAY: 1
+
+    SCRAPER_COMMAND_LATENCY_ENABLED: false
+    SCRAPER_COMMAND_LATENCY_DELAY: 2.0
+    SCRAPER_COMMAND_TIMEOUT: 120
+
+    SCRAPER_POLL_ENABLED: true
+    SCRAPER_POLL_TESTS_ENABLED: true
+    SCRAPER_POLL_PROFILER_ENABLED: true
+  security:
+    container:
+      allowPrivilegeEscalation: false
+    template:
+      runAsNonRoot: true
+      runAsUser: 1000
+      runAsGroup: 1000
+      fsGroup: 1000
+  extraPodSpecs: # For your nodeSelectors, tolerations, affinity 
+
+retriever:
+  enabled: true
+  timezone: # Defaults to the global.timezone
+  restartPolicy: Always
+  image:
+    name: slurpit/retriever
+    version: # Defaults to the global.image.version
+    registry: # Defaults to the global.image.registry
+    pullPolicy: # Defaults to the global.image.pullPolicy
+  env:    
+    RETRIEVER_DEBUG: false
+    RETRIEVER_POOLSIZE: 16
+    RETRIEVER_IDENTIFIER: retriever
+    RETRIEVER_TAGS: "default"
+
+    RETRIEVER_WAREHOUSE_HOSTNAME: slurpit-warehouse-service
+    RETRIEVER_WAREHOUSE_TOKEN: "pIcOFhKMTCzDiWH6kj7sD5PoVSbD3TGT"
+    RETRIEVER_WAREHOUSE_PORT: 50051
+  security:
+    container:
+      allowPrivilegeEscalation: false
+    template:
+      runAsNonRoot: true
+      runAsUser: 1000
+      runAsGroup: 1000
+      fsGroup: 1000
+  extraPodSpecs: # For your nodeSelectors, tolerations, affinity 

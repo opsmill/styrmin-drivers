@@ -1,0 +1,172 @@
+---
+apiVersion: "styrmin.io/v1"
+kind: ApplicationDriver
+metadata:
+  name: netpicker
+spec:
+  version: "1"
+  # Each version needs its database revision in values.j2.yml (alembic_revisions).
+  supported_versions: ">=2.8,<2.9"
+  default_version: "2.8.2"
+  info:
+    icon: https://avatars.githubusercontent.com/u/156186606?v=4
+    description: Network configuration backup, compliance testing and job automation
+    authors: [opsmill]
+    license: Apache-2.0
+    links:
+      - link: Homepage
+        url: 'https://netpicker.io/'
+      - link: Source
+        url: 'https://github.com/netpicker/netpicker'
+  helm:
+    main:
+      # The chart in chart/ of this driver: see CHART.md.
+      location: oci://registry.opsmill.io/external/netpicker
+      version: "2.8.1-opsmill.1"
+
+  parameters:
+    - name: alembic_revision
+      label: "Database revision (leave empty to use the revision of the selected version)"
+      kind: string
+      default: ""
+    - name: jwt_secret
+      label: "Key that signs the session tokens (leave empty to derive it from the deployment ID)"
+      kind: string
+      default: ""
+    - name: database_storage_size
+      label: "Database storage size (Gi)"
+      kind: integer
+      default: 8
+    - name: git_storage_size
+      label: "Configuration backup (git) storage size (Gi)"
+      kind: integer
+      default: 20
+    - name: api_storage_size
+      label: "API data storage size (Gi)"
+      kind: integer
+      default: 20
+    - name: minio_storage_size
+      label: "Object storage (MinIO) size (Gi)"
+      kind: integer
+      default: 4
+
+  components:
+    frontend:
+      container: frontend
+      identifier:
+        label:
+          app.kubernetes.io/component: frontend
+
+    api:
+      container: api
+      identifier:
+        label:
+          app.kubernetes.io/component: api
+      backup:
+        enabled: true
+        kind: disk
+        volume: policy-data
+
+    celery:
+      container: celery
+      identifier:
+        label:
+          app.kubernetes.io/component: celery
+
+    committer:
+      container: celery
+      identifier:
+        label:
+          app.kubernetes.io/component: committer
+
+    database:
+      container: db
+      singleton: true
+      identifier:
+        label:
+          app.kubernetes.io/component: database
+      backup:
+        enabled: true
+        kind: postgres
+        database_name: netpicker
+
+    redis:
+      container: redis
+      singleton: true
+      identifier:
+        label:
+          app.kubernetes.io/component: redis
+
+    gitd:
+      container: gitd
+      singleton: true
+      identifier:
+        label:
+          app.kubernetes.io/component: gitd
+      backup:
+        enabled: true
+        kind: disk
+        volume: git
+
+    minio:
+      container: minio
+      singleton: true
+      identifier:
+        label:
+          app.kubernetes.io/component: minio
+      backup:
+        enabled: true
+        kind: disk
+        volume: minio-data
+
+    agent:
+      container: agent
+      singleton: true
+      identifier:
+        label:
+          app.kubernetes.io/component: agent
+
+    kibbitzer:
+      container: kibbitzer
+      identifier:
+        label:
+          app.kubernetes.io/component: kibbitzer
+
+    syslogng:
+      container: syslogng
+      singleton: true
+      identifier:
+        label:
+          app.kubernetes.io/component: syslogng
+
+    swagger:
+      container: swagger
+      identifier:
+        label:
+          app.kubernetes.io/component: swagger
+
+  services:
+    - name: netpicker
+      kind: http
+      scope: external
+      port: 80
+      component: frontend
+
+  actions:
+    - name: upgrade
+      hook: upgrade
+      mode: core
+      description: Upgrade Netpicker and migrate its database
+      location: "actions.py::upgrade"
+
+    - name: pre_setup
+      hook: setup
+      mode: pre
+      description: Pre-setup of Netpicker
+      location: "actions.py::pre_setup"
+
+    - name: post_setup
+      hook: setup
+      mode: post
+      description: Post-setup of Netpicker
+      location: "actions.py::post_setup"

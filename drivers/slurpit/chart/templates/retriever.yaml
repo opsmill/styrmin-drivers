@@ -1,0 +1,54 @@
+{{ if .Values.retriever.enabled }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "slurpit.fullname" . }}-retriever-config
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "slurpit.componentLabels" (dict "root" . "component" "retriever") | nindent 4 }}
+data:
+  TZ: {{ .Values.retriever.timezone | default .Values.global.timezone | quote }}
+{{- range $key, $value := .Values.retriever.env }}
+  {{ $key }}: {{ $value | quote }}
+{{- end }}
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "slurpit.fullname" . }}-retriever
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "slurpit.componentLabels" (dict "root" . "component" "retriever") | nindent 4 }}
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      {{- include "slurpit.componentSelectorLabels" (dict "root" . "component" "retriever") | nindent 6 }}
+  strategy:
+    type: Recreate
+  template:
+    metadata:
+      labels:
+        {{- include "slurpit.componentLabels" (dict "root" . "component" "retriever") | nindent 8 }}
+    spec:
+      containers:
+        - name: {{ .Chart.Name }}-retriever
+          image: {{ .Values.retriever.image.registry | default .Values.global.registry }}{{ .Values.retriever.image.name }}:{{ .Values.retriever.image.version | default .Values.global.image.version }}
+          imagePullPolicy: {{ .Values.retriever.image.pullPolicy | default .Values.global.image.pullPolicy }}
+          envFrom:
+            - configMapRef:
+                name: {{ include "slurpit.fullname" . }}-retriever-config
+          {{- with .Values.retriever.security.container }}
+          securityContext:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+      restartPolicy: {{ .Values.retriever.restartPolicy }}
+      {{- with .Values.retriever.security.template }}
+      securityContext:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+    {{- with .Values.retriever.extraPodSpecs }}
+      {{- toYaml . | nindent 6 }}
+    {{- end }}
+{{ end }}
