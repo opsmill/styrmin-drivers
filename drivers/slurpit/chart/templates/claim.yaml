@@ -1,0 +1,186 @@
+{{ if and .Values.mariadb.enabled .Values.mariadb.storage.enabled}}
+{{ if .Values.mariadb.storage.pv.enabled}}
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: slurpit-mariadb-pv
+  labels:
+    {{- include "slurpit.componentLabels" (dict "root" . "component" "mariadb") | nindent 4 }}
+spec:
+  accessModes:
+    - ReadWriteMany
+  capacity:
+    storage: {{ .Values.mariadb.storage.pv.size }}
+  claimRef:
+    apiVersion: v1
+    kind: PersistentVolumeClaim
+    name: slurpit-mariadb-pvc
+    namespace: slurpit
+{{- with .Values.mariadb.storage.pv.extraSpec }}
+  {{- toYaml . | nindent 2 }}
+{{- end }}
+  persistentVolumeReclaimPolicy: {{ .Values.mariadb.storage.pv.reclaimPolicy }}
+  storageClassName: {{ .Values.mariadb.storage.className }}
+  volumeMode: Filesystem
+{{ end }}
+
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ include "slurpit.fullname" . }}-mariadb-pvc
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "slurpit.componentLabels" (dict "root" . "component" "mariadb") | nindent 4 }}
+{{- with .Values.mariadb.storage.extraMetadata }}
+  {{- toYaml . | nindent 2 }}
+{{- end }}
+spec:
+  accessModes:
+  - {{ .Values.mariadb.storage.accessModes }}
+  resources:
+    requests:
+      storage: {{ .Values.mariadb.storage.size }}
+  storageClassName: {{ .Values.mariadb.storage.className }}
+{{ end }}
+
+---
+{{ if and .Values.mongodb.enabled .Values.mongodb.storage.enabled}}
+{{ if .Values.mongodb.storage.pv.enabled}}
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: slurpit-mongodb-pv
+  labels:
+    {{- include "slurpit.componentLabels" (dict "root" . "component" "mongodb") | nindent 4 }}
+spec:
+  accessModes:
+    - ReadWriteMany
+  capacity:
+    storage: {{ .Values.mongodb.storage.pv.size }}
+  claimRef:
+    apiVersion: v1
+    kind: PersistentVolumeClaim
+    name: slurpit-mongodb-pvc
+    namespace: slurpit
+{{- with .Values.mongodb.storage.pv.extraSpec }}
+  {{- toYaml . | nindent 2 }}
+{{- end }}
+  persistentVolumeReclaimPolicy: {{ .Values.mongodb.storage.pv.reclaimPolicy }}
+  storageClassName: {{ .Values.mongodb.storage.className }}
+  volumeMode: Filesystem
+{{ end }}
+
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ include "slurpit.fullname" . }}-mongodb-pvc
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "slurpit.componentLabels" (dict "root" . "component" "mongodb") | nindent 4 }}
+{{- with .Values.mongodb.storage.extraMetadata }}
+  {{- toYaml . | nindent 2 }}
+{{- end }}
+spec:
+  accessModes:
+  - {{ .Values.mongodb.storage.accessModes }}
+  resources:
+    requests:
+      storage: {{ .Values.mongodb.storage.size }}
+  storageClassName: {{ .Values.mongodb.storage.className }}
+{{ end }}
+
+---
+{{ if and .Values.portal.enabled .Values.portal.storage.enabled}}
+{{ if .Values.portal.storage.pv.enabled}}
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: slurpit-portal-pv
+  labels:
+    {{- include "slurpit.componentLabels" (dict "root" . "component" "portal") | nindent 4 }}
+spec:
+  accessModes:
+    - ReadWriteMany
+  capacity:
+    storage: {{ .Values.portal.storage.pv.size }}
+  claimRef:
+    apiVersion: v1
+    kind: PersistentVolumeClaim
+    name: slurpit-portal-pvc
+    namespace: slurpit
+{{- with .Values.portal.storage.pv.extraSpec }}
+  {{- toYaml . | nindent 2 }}
+{{- end }}
+  persistentVolumeReclaimPolicy: {{ .Values.portal.storage.pv.reclaimPolicy }}
+  storageClassName: {{ .Values.portal.storage.className }}
+  volumeMode: Filesystem
+{{ end }}
+
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ include "slurpit.fullname" . }}-portal-pvc
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "slurpit.componentLabels" (dict "root" . "component" "portal") | nindent 4 }}
+{{- with .Values.portal.storage.extraMetadata }}
+  {{- toYaml . | nindent 2 }}
+{{- end }}
+spec:
+  accessModes:
+  - {{ .Values.portal.storage.accessModes }}
+  resources:
+    requests:
+      storage: {{ .Values.portal.storage.size }}
+  storageClassName: {{ .Values.portal.storage.className }}
+{{ end }}
+
+---
+{{ if and .Values.warehouse.enabled .Values.warehouse.storage.enabled}}
+{{ if .Values.warehouse.storage.pv.enabled}}
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: slurpit-warehouse-pv
+  labels:
+    {{- include "slurpit.componentLabels" (dict "root" . "component" "warehouse") | nindent 4 }}
+spec:
+  accessModes:
+    - ReadWriteMany
+  capacity:
+    storage: {{ .Values.warehouse.storage.pv.size }}
+  claimRef:
+    apiVersion: v1
+    kind: PersistentVolumeClaim
+    name: slurpit-warehouse-pvc
+    namespace: slurpit
+{{- with .Values.warehouse.storage.pv.extraSpec }}
+  {{- toYaml . | nindent 2 }}
+{{- end }}
+  persistentVolumeReclaimPolicy: {{ .Values.warehouse.storage.pv.reclaimPolicy }}
+  storageClassName: {{ .Values.warehouse.storage.className }}
+  volumeMode: Filesystem
+{{ end }}
+
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ include "slurpit.fullname" . }}-warehouse-pvc
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "slurpit.componentLabels" (dict "root" . "component" "warehouse") | nindent 4 }}
+{{- with .Values.warehouse.storage.extraMetadata }}
+  {{- toYaml . | nindent 2 }}
+{{- end }}
+spec:
+  accessModes:
+  - {{ .Values.warehouse.storage.accessModes }}
+  resources:
+    requests:
+      storage: {{ .Values.warehouse.storage.size }}
+  storageClassName: {{ .Values.warehouse.storage.className }}
+{{ end }}

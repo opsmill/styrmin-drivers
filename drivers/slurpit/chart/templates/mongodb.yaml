@@ -1,0 +1,101 @@
+{{ if .Values.mongodb.enabled }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "slurpit.fullname" . }}-mongodb-config
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "slurpit.componentLabels" (dict "root" . "component" "mongodb") | nindent 4 }}
+data:
+  TZ: {{ .Values.mongodb.timezone | default .Values.global.timezone | quote }}
+{{- range $key, $value := .Values.mongodb.env }}
+  {{ $key }}: {{ $value | quote }}
+{{- end }}
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "slurpit.fullname" . }}-mongodb
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "slurpit.componentLabels" (dict "root" . "component" "mongodb") | nindent 4 }}
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      {{- include "slurpit.componentSelectorLabels" (dict "root" . "component" "mongodb") | nindent 6 }}
+  strategy:
+    type: Recreate
+  template:
+    metadata:
+      labels:
+        {{- include "slurpit.componentLabels" (dict "root" . "component" "mongodb") | nindent 8 }}
+    spec:
+      containers:
+        - name: {{ include "slurpit.fullname" . }}-mongodb
+          image: {{ .Values.mongodb.image.registry }}{{ .Values.mongodb.image.name }}:{{ .Values.mongodb.image.version }}
+          imagePullPolicy: Always
+          envFrom:
+            - configMapRef:
+                name: {{ include "slurpit.fullname" . }}-mongodb-config
+          livenessProbe:
+            tcpSocket:
+              port: 27017
+            failureThreshold: 360
+            periodSeconds: 10
+            timeoutSeconds: 10
+            initialDelaySeconds: 5
+          {{- with .Values.mongodb.security.container }}
+          securityContext:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          ports:
+          - containerPort: 27017
+          volumeMounts:
+          - name: {{ .Chart.Name }}-mongodb-storage
+            mountPath: /var/log/mongodb
+            subPath: logs/mongodb
+          - name: {{ .Chart.Name }}-mongodb-storage
+            mountPath: /data/db
+            subPath: database/mongodb
+          {{- with .Values.mongodb.extraVolumeMounts }}
+          {{- toYaml . | nindent 10 }}
+          {{- end }}
+      volumes:
+      - name: {{ .Chart.Name }}-mongodb-storage
+      {{ if .Values.mongodb.storage.enabled}}
+        persistentVolumeClaim:
+          claimName: {{ include "slurpit.fullname" . }}-mongodb-pvc
+      {{ else }}
+        emptyDir: {}
+      {{ end }}
+      {{- with .Values.mongodb.extraVolumes }}
+      {{- toYaml . | nindent 6 }}
+      {{- end }}
+      restartPolicy: Always
+      {{- with .Values.mongodb.security.template }}
+      securityContext:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "slurpit.fullname" . }}-mongodb-service
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "slurpit.componentLabels" (dict "root" . "component" "mongodb") | nindent 4 }}
+spec:
+  type: {{ .Values.mongodb.service.type }}
+  selector:
+    {{- include "slurpit.componentSelectorLabels" (dict "root" . "component" "mongodb") | nindent 4 }}
+  ports:
+    - name: mongo
+      targetPort: 27017
+      port: {{ .Values.mongodb.service.mongo.port }}
+      {{ if .Values.mongodb.service.mongo.nodePort }}
+      nodePort: {{ .Values.mongodb.service.mongo.nodePort }}
+      {{ end }}
+{{ end }}

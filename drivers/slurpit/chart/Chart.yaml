@@ -1,0 +1,9 @@
+apiVersion: v2
+name: slurpit
+description: A Helm chart for Kubernetes
+type: application
+# Upstream chart of gitlab.com/slurpit.io/images (helm-charts/slurpit) at commit b65e64a,
+# with extraVolumes and extraVolumeMounts on mariadb and mongodb for the Styrmin backup
+# volume, and portal.ingress.extraHosts. See ../CHART.md.
+version: 1.3.7
+appVersion: "1.3.x"

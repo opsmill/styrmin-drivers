@@ -1,0 +1,104 @@
+{{ if .Values.warehouse.enabled }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "slurpit.fullname" . }}-warehouse-config
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "slurpit.componentLabels" (dict "root" . "component" "warehouse") | nindent 4 }}
+data:
+  TZ: {{ .Values.warehouse.timezone | default .Values.global.timezone | quote }}
+{{- range $key, $value := .Values.warehouse.env }}
+  {{ $key }}: {{ $value | quote }}
+{{- end }}
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "slurpit.fullname" . }}-warehouse
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "slurpit.componentLabels" (dict "root" . "component" "warehouse") | nindent 4 }}
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      {{- include "slurpit.componentSelectorLabels" (dict "root" . "component" "warehouse") | nindent 6 }}
+  strategy:
+    type: Recreate
+  template:
+    metadata:
+      labels:
+        {{- include "slurpit.componentLabels" (dict "root" . "component" "warehouse") | nindent 8 }}
+    spec:
+      containers:
+        - image: {{ .Values.warehouse.image.registry | default .Values.global.registry }}{{ .Values.warehouse.image.name }}:{{ .Values.warehouse.image.version | default .Values.global.image.version }}
+          name: {{ include "slurpit.fullname" . }}-warehouse
+          imagePullPolicy: {{ .Values.warehouse.image.pullPolicy | default .Values.global.image.pullPolicy }}
+          envFrom:
+            - configMapRef:
+                name: {{ include "slurpit.fullname" . }}-warehouse-config
+          livenessProbe:
+            exec:
+              command:
+                - curl
+                - -f
+                - http://localhost/services
+            failureThreshold: 360
+            periodSeconds: 10
+            timeoutSeconds: 10
+            initialDelaySeconds: 5
+          ports:
+          - containerPort: 80
+          - containerPort: 50051
+          volumeMounts:
+          - name: {{ .Chart.Name }}-warehouse-storage
+            mountPath: /backup/files
+            subPath: backup/warehouse
+          {{- with .Values.warehouse.security.container }}
+          securityContext:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+      volumes:
+      - name: {{ .Chart.Name }}-warehouse-storage
+      {{ if .Values.warehouse.storage.enabled}}
+        persistentVolumeClaim:
+          claimName: {{ include "slurpit.fullname" . }}-warehouse-pvc
+      {{ else }}
+        emptyDir: {}
+      {{ end }}
+      restartPolicy: {{ .Values.warehouse.restartPolicy }}
+      {{- with .Values.warehouse.security.template }}
+      securityContext:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "slurpit.fullname" . }}-warehouse-service
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "slurpit.componentLabels" (dict "root" . "component" "warehouse") | nindent 4 }}
+spec:
+  type: {{ .Values.warehouse.service.type }}
+  selector:
+    {{- include "slurpit.componentSelectorLabels" (dict "root" . "component" "warehouse") | nindent 4 }}
+  ports:
+    - name: fastapi
+      protocol: TCP
+      targetPort: 80
+      port: {{ .Values.warehouse.service.http.port }}
+      {{ with .Values.warehouse.service.http.nodePort }}
+      nodePort: {{ . }}
+      {{ end }}
+    - name: grpc
+      protocol: TCP
+      targetPort: 50051
+      port: {{ .Values.warehouse.service.grpc.port }}
+      {{ with .Values.warehouse.service.grpc.nodePort }}
+      nodePort: {{ . }}
+      {{ end }}
+{{ end }}

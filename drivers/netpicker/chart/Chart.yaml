@@ -1,0 +1,19 @@
+apiVersion: v2
+name: netpicker
+description: A Helm chart for Netpicker
+type: application
+# Upstream chart of github.com/netpicker/netpicker (netpicker-chart) at commit a2111fe,
+# with the changes listed in ../CHART.md.
+version: 2.8.1-opsmill.1
+appVersion: "2.8.1"
+home: https://github.com/netpicker/netpicker
+sources:
+  - https://github.com/netpicker/netpicker
+icon: https://avatars.githubusercontent.com/u/156186606?v=4
+keywords:
+  - networking
+  - monitoring
+  - analysis
+  - observability
+annotations:
+  category: Monitoring

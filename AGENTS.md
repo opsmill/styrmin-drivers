@@ -39,6 +39,9 @@ explains how to load and reload a driver while you test it.
   flows call helpers from `styrmin_backend.actions`.
 - `src/` (only db-test and simple-app): the application source code, `Dockerfile` and
   Helm chart.
+- `chart/` and `CHART.md` (only netpicker and slurpit): an OpsMill copy of the upstream
+  Helm chart, published to `oci://registry.opsmill.io/external`. `CHART.md` lists each
+  change to the upstream chart. Publish a new chart version for every change to `chart/`.
 
 ## Rules for changes
 
@@ -46,8 +49,8 @@ explains how to load and reload a driver while you test it.
   service tokens). Do not add new real credentials. Do not present the existing ones as
   safe for a real deployment.
 - `README.md` lists known issues, for example simple-app's unauthenticated `/probe`
-  endpoint and Slurpit's missing service and ingress wiring. When a change fixes or
-  affects one, update that list and say so in the pull request.
+  endpoint. When a change fixes or affects one, update that list and say so in the pull
+  request.
 
 ## Agent layout
 

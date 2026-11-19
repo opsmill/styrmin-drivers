@@ -1,0 +1,54 @@
+{{ if .Values.scraper.enabled }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "slurpit.fullname" . }}-scraper-config
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "slurpit.componentLabels" (dict "root" . "component" "scraper") | nindent 4 }}
+data:
+  TZ: {{ .Values.scraper.timezone | default .Values.global.timezone | quote }}
+{{- range $key, $value := .Values.scraper.env }}
+  {{ $key }}: {{ $value | quote }}
+{{- end }}
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "slurpit.fullname" . }}-scraper
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "slurpit.componentLabels" (dict "root" . "component" "scraper") | nindent 4 }}
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      {{- include "slurpit.componentSelectorLabels" (dict "root" . "component" "scraper") | nindent 6 }}
+  strategy:
+    type: Recreate
+  template:
+    metadata:
+      labels:
+        {{- include "slurpit.componentLabels" (dict "root" . "component" "scraper") | nindent 8 }}
+    spec:
+      containers:
+        - name: {{ .Chart.Name }}-scraper
+          image: {{ .Values.scraper.image.imageRegistry | default .Values.global.imageRegistry }}{{ .Values.scraper.image.name }}:{{ .Values.scraper.image.version | default .Values.global.image.version }}
+          imagePullPolicy: {{ .Values.scraper.image.pullPolicy | default .Values.global.image.pullPolicy }}
+          envFrom:
+            - configMapRef:
+                name: {{ include "slurpit.fullname" . }}-scraper-config
+          {{- with .Values.scraper.security.container }}
+          securityContext:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+      restartPolicy: {{ .Values.scraper.restartPolicy }}
+      {{- with .Values.scraper.security.template }}
+      securityContext:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+    {{- with .Values.scraper.extraPodSpecs }}
+      {{- toYaml . | nindent 6 }}
+    {{- end }}
+{{ end }}

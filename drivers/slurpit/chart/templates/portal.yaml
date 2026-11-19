@@ -1,0 +1,152 @@
+{{ if .Values.portal.enabled }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "slurpit.fullname" . }}-portal-config
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "slurpit.componentLabels" (dict "root" . "component" "portal") | nindent 4 }}
+data:
+  TZ: {{ .Values.portal.timezone | default .Values.global.timezone | quote }}
+{{- range $key, $value := .Values.portal.env }}
+  {{ $key }}: {{ $value | quote }}
+{{- end }}
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "slurpit.fullname" . }}-portal
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "slurpit.componentLabels" (dict "root" . "component" "portal") | nindent 4 }}
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      {{- include "slurpit.componentSelectorLabels" (dict "root" . "component" "portal") | nindent 6 }}
+  strategy:
+    type: Recreate
+  template:
+    metadata:
+      labels:
+        {{- include "slurpit.componentLabels" (dict "root" . "component" "portal") | nindent 8 }}
+    spec:
+      {{- with .Values.portal.security.template }}
+      securityContext:
+        {{- toYaml . | nindent 12 }}
+      {{- end }}
+      containers:
+        - name: {{ .Chart.Name }}-portal
+          image: {{ .Values.portal.image.registry | default .Values.global.registry }}{{ .Values.portal.image.name }}:{{ .Values.portal.image.version | default .Values.global.image.version }}
+          imagePullPolicy: {{ .Values.portal.image.pullPolicy | default .Values.global.image.pullPolicy }}
+          envFrom:
+            - configMapRef:
+                name: {{ include "slurpit.fullname" . }}-portal-config
+          ports:
+            - containerPort: 80
+          {{ if .Values.portal.https }}
+            - containerPort: 443
+          {{ end }}
+          livenessProbe:
+            exec:
+              command:
+                - curl
+                - -f
+                - http://localhost/health_check
+            failureThreshold: 360
+            periodSeconds: 10
+            timeoutSeconds: 10
+            initialDelaySeconds: 5
+          {{- with .Values.portal.security.container }}
+          securityContext:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          volumeMounts:
+          - name: {{ .Chart.Name }}-portal-storage
+            mountPath: /backup/files
+            subPath: backup/portal
+          {{ if .Values.portal.service.https }}
+          - name: {{ .Chart.Name }}-portal-storage
+            mountPath: /etc/nginx/certs
+            subPath: certs
+          {{ end }}
+          {{ if .Values.portal.service.ldap }}
+          - name: {{ .Chart.Name }}-portal-storage
+            mountPath: /usr/share/ca-certificates
+            subPath: ldap-certs
+          {{ end }}
+      volumes:
+      - name: {{ .Chart.Name }}-portal-storage
+      {{ if .Values.portal.storage.enabled}}
+        persistentVolumeClaim:
+          claimName: {{ include "slurpit.fullname" . }}-portal-pvc
+      {{ else }}
+        emptyDir: {}
+      {{ end }}
+      restartPolicy: {{ .Values.portal.restartPolicy }}
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "slurpit.fullname" . }}-portal-service
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "slurpit.componentLabels" (dict "root" . "component" "portal") | nindent 4 }}
+spec:
+  type: {{ .Values.portal.service.type }}
+  selector:
+    {{- include "slurpit.componentSelectorLabels" (dict "root" . "component" "portal") | nindent 4 }}
+  ports:
+    {{ if .Values.portal.service.http.enabled }}
+    - name: http
+      protocol: TCP
+      port: {{ .Values.portal.service.http.port }}
+      targetPort: 80
+      {{ with .Values.portal.service.http.nodePort }}
+      nodePort: {{ . }}
+      {{ end }}
+    {{ end }}
+    {{ if .Values.portal.service.https.enabled }}
+    - name: https
+      protocol: TCP
+      port: {{ .Values.portal.service.https.port }}
+      targetPort: 443
+      {{ with .Values.portal.service.https.nodePort }}
+      nodePort: {{ . }}
+      {{ end }}
+    {{ end }}
+    {{ if .Values.portal.service.ldap.enabled }}
+    - name: ldap
+      protocol: TCP
+      targetPort: 636
+      port: {{ .Values.portal.service.ldap.port }}
+      {{ with .Values.portal.service.ldap.nodePort }}
+      nodePort: {{ . }}
+      {{ end }}
+    {{ end }}
+
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: {{ include "slurpit.fullname" . }}-ingress
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "slurpit.componentLabels" (dict "root" . "component" "portal") | nindent 4 }}
+spec:
+  rules:
+  {{- range (prepend (.Values.portal.ingress.extraHosts | default list) .Values.portal.ingress.host) }}
+  - host: {{ . }}
+    http:
+      paths:
+      - path: {{ $.Values.portal.ingress.path }}
+        pathType: Prefix
+        backend:
+          service:
+            name: {{ include "slurpit.fullname" $ }}-portal-service
+            port:
+              number: {{ $.Values.portal.ingress.port }}
+  {{- end }}
+{{ end }}

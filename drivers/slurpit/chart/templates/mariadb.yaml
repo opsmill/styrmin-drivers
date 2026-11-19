@@ -1,0 +1,105 @@
+{{ if .Values.mariadb.enabled }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "slurpit.fullname" . }}-mariadb-config
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "slurpit.componentLabels" (dict "root" . "component" "mariadb") | nindent 4 }}
+data:
+  TZ: {{ .Values.mariadb.timezone | default .Values.global.timezone | quote }}
+{{- range $key, $value := .Values.mariadb.env }}
+  {{ $key }}: {{ $value | quote }}
+{{- end }}
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "slurpit.fullname" . }}-mariadb
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "slurpit.componentLabels" (dict "root" . "component" "mariadb") | nindent 4 }}
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      {{- include "slurpit.componentSelectorLabels" (dict "root" . "component" "mariadb") | nindent 6 }}
+  strategy:
+    type: Recreate
+  template:
+    metadata:
+      labels:
+        {{- include "slurpit.componentLabels" (dict "root" . "component" "mariadb") | nindent 8 }}
+    spec:
+      containers:
+        - name: {{ .Chart.Name }}-mariadb
+          image: {{ .Values.mariadb.image.registry }}{{ .Values.mariadb.image.name }}:{{ .Values.mariadb.image.version }}
+          imagePullPolicy: Always
+          {{- with .Values.mariadb.security.container }}
+          securityContext:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          envFrom:
+            - configMapRef:
+                name: {{ include "slurpit.fullname" . }}-mariadb-config
+          livenessProbe:
+            exec:
+              command:
+                - healthcheck.sh
+                - --connect
+                - --innodb_initialized
+            failureThreshold: 360
+            periodSeconds: 10
+            timeoutSeconds: 10
+            initialDelaySeconds: 5
+          ports:
+          - containerPort: 3306
+          volumeMounts:
+          - name: {{ .Chart.Name }}-mariadb-storage
+            mountPath: /var/log/mysql
+            subPath: logs/mariadb
+          - name: {{ .Chart.Name }}-mariadb-storage
+            mountPath: /var/lib/mysql
+            subPath: database/mariadb
+          {{- with .Values.mariadb.extraVolumeMounts }}
+          {{- toYaml . | nindent 10 }}
+          {{- end }}
+      volumes:
+      - name: {{ .Chart.Name }}-mariadb-storage
+      {{ if .Values.mariadb.storage.enabled}}
+        persistentVolumeClaim:
+          claimName: {{ include "slurpit.fullname" . }}-mariadb-pvc
+      {{ else }}
+        emptyDir: {}
+      {{ end }}
+      {{- with .Values.mariadb.extraVolumes }}
+      {{- toYaml . | nindent 6 }}
+      {{- end }}
+      restartPolicy: Always
+      {{- with .Values.mariadb.security.template }}
+      securityContext:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "slurpit.fullname" . }}-mariadb-service
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "slurpit.componentLabels" (dict "root" . "component" "mariadb") | nindent 4 }}
+spec:
+  type: {{ .Values.mariadb.service.type }}
+  selector:
+    {{- include "slurpit.componentSelectorLabels" (dict "root" . "component" "mariadb") | nindent 4 }}
+  ports:
+    - name: mysql
+      protocol: TCP
+      targetPort: 3306
+      port: {{ .Values.mariadb.service.mysql.port }}
+      {{ if .Values.mariadb.service.mysql.nodePort }}
+      nodePort: {{ .Values.mariadb.service.mysql.nodePort }}
+      {{ end }}
+{{ end }}

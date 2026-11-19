@@ -6,22 +6,21 @@ from styrmin_backend.actions import (
 )
 from prefect import flow, get_run_logger
 
+APPLICATION_COMPONENTS = ["portal", "warehouse", "scanner", "scraper", "retriever"]
+
 
 @flow
 async def upgrade(context: GlobalContext, target_version: str):
     logger = get_run_logger()
     logger.info("Starting Slurpit upgrade...")
 
-    # Stop application services, keep databases running
-    await stop_components(
-        components=["portal", "warehouse", "scanner", "scraper"], context=context
-    )
+    # Stop application services, keep databases running. The portal migrates the
+    # MariaDB database when it starts on the new version.
+    await stop_components(components=APPLICATION_COMPONENTS, context=context)
 
     await upgrade_deployment_version(target_version=target_version, context=context)
 
-    await start_components(
-        components=["portal", "warehouse", "scanner", "scraper"], context=context
-    )
+    await start_components(components=APPLICATION_COMPONENTS, context=context)
 
     logger.info(f"Slurpit upgrade to {target_version} complete.")
 
