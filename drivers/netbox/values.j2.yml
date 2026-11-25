@@ -59,6 +59,43 @@ persistence:
 housekeeping:
   enabled: {{ parameters.enable_housekeeping | lower }}
 
+# The wait-for-backend init container runs kubectl against the Kubernetes API, which
+# Styrmin's network policies block, so the worker never starts.
+worker:
+  waitForBackend:
+    enabled: false
+
+# Styrmin adds a default-deny-egress policy to every deployment namespace
+# (https://github.com/opsmill/styrmin/issues/284). Allow DNS, the pods of this
+# deployment, and the internet without the private ranges (webhooks, remote data sources).
+extraDeploy:
+  - apiVersion: networking.k8s.io/v1
+    kind: NetworkPolicy
+    metadata:
+      name: styrmin-netbox-egress
+    spec:
+      podSelector: {}
+      policyTypes: [Egress]
+      egress:
+        - to:
+            - namespaceSelector: {}
+              podSelector:
+                matchExpressions:
+                  - key: k8s-app
+                    operator: In
+                    values: [kube-dns, coredns]
+          ports:
+            - port: 53
+              protocol: UDP
+            - port: 53
+              protocol: TCP
+        - to:
+            - podSelector: {}
+        - to:
+            - ipBlock:
+                cidr: 0.0.0.0/0
+                except: [10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16, 100.64.0.0/10]
+
 postgresql:
   enabled: true
   fullnameOverride: styrmin-postgresql
