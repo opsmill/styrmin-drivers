@@ -17,6 +17,13 @@ superuser:
   password: admin-password
   apiToken: 0123456789abcdef0123456789abcdef01234567
 
+# NetBox creates the admin's v2 API token only when it gets both the token and a key
+# of 12 letters or digits, and the chart passes only the token. Use the API with
+# "Authorization: Bearer nbt_styrminadmin.<apiToken>".
+extraEnvs:
+  - name: SUPERUSER_API_KEY
+    value: styrminadmin
+
 # Without a fixed value the chart generates a new key on every render, which
 # logs out every user each time Styrmin re-renders the values.
 secretKey: styrmin-netbox-secret-key-0123456789abcdefghijklmnopqrstuvwxyz
