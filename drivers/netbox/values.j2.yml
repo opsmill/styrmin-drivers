@@ -63,9 +63,6 @@ persistence:
   size: "{{ parameters.media_storage_size }}Gi"
   storageClass: "{{ instance.config.standard_storage.storage_class }}"
 
-housekeeping:
-  enabled: {{ parameters.enable_housekeeping | lower }}
-
 # The wait-for-backend init container runs kubectl against the Kubernetes API, which
 # Styrmin's network policies block, so the worker never starts.
 worker:

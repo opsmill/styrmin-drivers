@@ -33,10 +33,6 @@ spec:
       label: "Media storage size (Gi)"
       kind: integer
       default: 1
-    - name: enable_housekeeping
-      label: "Run the daily housekeeping job"
-      kind: boolean
-      default: false
 
   components:
     server:
